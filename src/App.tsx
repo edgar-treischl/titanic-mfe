@@ -229,66 +229,15 @@ export default function App() {
         </div>
 
         <span className={`analytics-app__status analytics-app__status--${dataState}`}>
-          {dataState === 'loading' ? 'Loading sample feed' : 'Sample feed ready'}
+          {dataState === 'loading' ? 'Loading sample feed' : 'Sample data only'}
         </span>
       </header>
-
-      <section className="analytics-app__kpi-grid" aria-label="Key metrics">
-        <article className="analytics-app__panel analytics-app__kpi">
-          <span className="analytics-app__kpi-label">Passengers in view</span>
-          <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' ? metrics.totalPassengers : '—'}
-          </strong>
-          <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? `${totalPassengers} passengers in the curated sample`
-              : 'Waiting for sample data'}
-          </p>
-        </article>
-        <article className="analytics-app__panel analytics-app__kpi">
-          <span className="analytics-app__kpi-label">Survival rate</span>
-          <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' && metrics.survivalRate !== null
-              ? `${Math.round(metrics.survivalRate * 100)}%`
-              : '—'}
-          </strong>
-          <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? 'Calculated from the filtered cohort'
-              : 'Unavailable until the feed resolves'}
-          </p>
-        </article>
-        <article className="analytics-app__panel analytics-app__kpi">
-          <span className="analytics-app__kpi-label">Average fare</span>
-          <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' && metrics.avgFare !== null
-              ? currencyFormatter.format(metrics.avgFare)
-              : '—'}
-          </strong>
-          <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? 'Useful for comparing cabin-class mix'
-              : 'Waiting for ticket data'}
-          </p>
-        </article>
-        <article className="analytics-app__panel analytics-app__kpi">
-          <span className="analytics-app__kpi-label">Children in view</span>
-          <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' ? metrics.childrenCount : '—'}
-          </strong>
-          <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? `Average age ${metrics.avgAge !== null ? numberFormatter.format(metrics.avgAge) : 'unknown'}`
-              : 'Age data still loading'}
-          </p>
-        </article>
-      </section>
 
       <section className="analytics-app__workspace">
         <div className="analytics-app__panel analytics-app__main-panel">
           <div className="analytics-app__section-header">
             <div>
-              <h2 className="analytics-app__section-title">Manifest view</h2>
+              <h2 className="analytics-app__section-title">Passenger Overview</h2>
               <p className="analytics-app__section-copy">
                 Filter the sample manifest, sort the cohort, and select a
                 passenger to inspect the story behind the row.

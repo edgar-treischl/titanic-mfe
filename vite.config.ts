@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 import federation from '@originjs/vite-plugin-federation';
 
 export default defineConfig({
-  base: '/analytics-mfe/', // 👈 REQUIRED for GitHub Pages
+  // IMPORTANT for GitHub Pages deployment
+  base: '/analytics-mfe/',
 
   plugins: [
     react(),
@@ -13,10 +14,12 @@ export default defineConfig({
       exposes: {
         './AnalyticsApp': './src/App.tsx',
       },
+
+      // POC fix for TS issue
       shared: {
         react: { singleton: true },
         'react-dom': { singleton: true },
-      },
+      } as any,
     }),
   ],
 

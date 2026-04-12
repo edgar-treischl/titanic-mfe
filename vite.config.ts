@@ -15,11 +15,10 @@ export default defineConfig({
         './AnalyticsApp': './src/App.tsx',
       },
 
-      // POC fix for TS issue
       shared: {
         react: { singleton: true },
         'react-dom': { singleton: true },
-      } as any,
+      },
     }),
   ],
 

@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import titanicData from './data/titanic.json';
 import './App.css';
-import {
-  titanicPassengers,
-  type Embarkation,
-  type TitanicPassenger,
-} from './titanicData';
 
-type DataState = 'loading' | 'ready';
+type Embarkation = 'Cherbourg' | 'Queenstown' | 'Southampton' | 'Unknown';
 type ClassFilter = 'all' | TitanicPassenger['passengerClass'];
+type EmbarkationFilter = 'all' | Embarkation;
 type ChartDimension = 'sex' | 'passengerClass' | 'embarked';
+
+interface TitanicPassenger {
+  id: string;
+  age: number | null;
+  sex: 'female' | 'male';
+  passengerClass: 1 | 2 | 3;
+  fare: number | null;
+  embarked: Embarkation;
+  survived: boolean;
+}
 
 interface SurvivalSegment {
   key: string;
@@ -16,16 +23,15 @@ interface SurvivalSegment {
   count: number;
   survivedCount: number;
   survivalRate: number;
-  averageAge: number | null;
-  averageFare: number | null;
 }
 
 const classOptions: ClassFilter[] = ['all', 1, 2, 3];
-const embarkationOptions: Array<'all' | Embarkation> = [
+const embarkationOptions: EmbarkationFilter[] = [
   'all',
   'Cherbourg',
   'Queenstown',
   'Southampton',
+  'Unknown',
 ];
 const chartDimensionOptions: Array<{
   label: string;
@@ -57,6 +63,27 @@ function average(values: number[]) {
   }
 
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function normalizeNumber(value: number | string) {
+  if (value === '') {
+    return null;
+  }
+
+  return typeof value === 'number' ? value : Number(value);
+}
+
+function normalizeEmbarkation(code: string): Embarkation {
+  switch (code) {
+    case 'C':
+      return 'Cherbourg';
+    case 'Q':
+      return 'Queenstown';
+    case 'S':
+      return 'Southampton';
+    default:
+      return 'Unknown';
+  }
 }
 
 function classLabel(passengerClass: TitanicPassenger['passengerClass']) {
@@ -107,12 +134,6 @@ function buildSurvivalSegments(
         count: cohort.length,
         survivedCount,
         survivalRate: cohort.length ? survivedCount / cohort.length : 0,
-        averageAge: average(
-          cohort
-            .map((passenger) => passenger.age)
-            .filter((age): age is number => age !== null),
-        ),
-        averageFare: average(cohort.map((passenger) => passenger.fare)),
       };
     });
   }
@@ -130,17 +151,13 @@ function buildSurvivalSegments(
         count: cohort.length,
         survivedCount,
         survivalRate: cohort.length ? survivedCount / cohort.length : 0,
-        averageAge: average(
-          cohort
-            .map((passenger) => passenger.age)
-            .filter((age): age is number => age !== null),
-        ),
-        averageFare: average(cohort.map((passenger) => passenger.fare)),
       };
     });
   }
 
-  return (['Cherbourg', 'Queenstown', 'Southampton'] as const).map((embarked) => {
+  return (
+    ['Cherbourg', 'Queenstown', 'Southampton', 'Unknown'] as const
+  ).map((embarked) => {
     const cohort = passengers.filter((passenger) => passenger.embarked === embarked);
     const survivedCount = cohort.filter((passenger) => passenger.survived).length;
 
@@ -150,12 +167,6 @@ function buildSurvivalSegments(
       count: cohort.length,
       survivedCount,
       survivalRate: cohort.length ? survivedCount / cohort.length : 0,
-      averageAge: average(
-        cohort
-          .map((passenger) => passenger.age)
-          .filter((age): age is number => age !== null),
-      ),
-      averageFare: average(cohort.map((passenger) => passenger.fare)),
     };
   });
 }
@@ -170,42 +181,182 @@ function formatAverage(value: number | null, kind: 'age' | 'fare') {
     : numberFormatter.format(value);
 }
 
-function chartFillSize(value: number, minimumPixels: number) {
-  return `max(${(value * 100).toFixed(1)}%, ${minimumPixels}px)`;
+function segmentColor(chartDimension: ChartDimension, segmentKey: string) {
+  if (chartDimension === 'sex') {
+    return segmentKey === 'female'
+      ? 'var(--analytics-chart-female)'
+      : 'var(--analytics-chart-male)';
+  }
+
+  if (chartDimension === 'passengerClass') {
+    switch (segmentKey) {
+      case '1':
+        return 'var(--analytics-chart-class-1)';
+      case '2':
+        return 'var(--analytics-chart-class-2)';
+      default:
+        return 'var(--analytics-chart-class-3)';
+    }
+  }
+
+  switch (segmentKey) {
+    case 'Cherbourg':
+      return 'var(--analytics-chart-port-c)';
+    case 'Queenstown':
+      return 'var(--analytics-chart-port-q)';
+    case 'Southampton':
+      return 'var(--analytics-chart-port-s)';
+    default:
+      return 'var(--analytics-chart-unknown)';
+  }
+}
+
+function SurvivalBarPlot({
+  segments,
+  chartDimension,
+}: {
+  segments: SurvivalSegment[];
+  chartDimension: ChartDimension;
+}) {
+  const leftPadding = 150;
+  const plotWidth = 320;
+  const rightPadding = 78;
+  const topPadding = 30;
+  const rowHeight = 50;
+  const barHeight = 16;
+  const chartHeight = topPadding + segments.length * rowHeight + 8;
+  const chartWidth = leftPadding + plotWidth + rightPadding;
+  const ticks = [0, 0.5, 1];
+
+  return (
+    <div className="analytics-app__plot-shell">
+      <svg
+        className="analytics-app__plot"
+        role="img"
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        aria-label="Bar plot showing survival rate by segment"
+      >
+        {ticks.map((tick) => {
+          const x = leftPadding + tick * plotWidth;
+
+          return (
+            <g key={tick}>
+              <line
+                x1={x}
+                x2={x}
+                y1={topPadding - 12}
+                y2={chartHeight - 10}
+                stroke="var(--analytics-border)"
+                strokeDasharray={tick === 0 ? undefined : '4 6'}
+              />
+              <text
+                x={x}
+                y={18}
+                fill="var(--analytics-muted)"
+                fontSize="12"
+                textAnchor={tick === 0 ? 'start' : tick === 1 ? 'end' : 'middle'}
+              >
+                {percentFormatter.format(tick)}
+              </text>
+            </g>
+          );
+        })}
+
+        {segments.map((segment, index) => {
+          const y = topPadding + index * rowHeight;
+          const barWidth = plotWidth * segment.survivalRate;
+          const fill = segmentColor(chartDimension, segment.key);
+
+          return (
+            <g key={segment.key}>
+              <text
+                x={0}
+                y={y + 7}
+                fill="var(--analytics-heading)"
+                fontSize="12"
+                fontWeight="700"
+              >
+                {segment.label}
+              </text>
+              <text
+                x={0}
+                y={y + 21}
+                fill="var(--analytics-muted)"
+                fontSize="11"
+              >
+                {segment.count} passengers
+              </text>
+
+              <rect
+                x={leftPadding}
+                y={y - barHeight / 2}
+                width={plotWidth}
+                height={barHeight}
+                rx={barHeight / 2}
+                fill="var(--analytics-app-bg)"
+                stroke="var(--analytics-border)"
+              />
+              <rect
+                x={leftPadding}
+                y={y - barHeight / 2}
+                width={barWidth}
+                height={barHeight}
+                rx={barHeight / 2}
+                fill={fill}
+              />
+
+              <text
+                x={leftPadding + plotWidth + 12}
+                y={y + 1}
+                fill="var(--analytics-heading)"
+                fontSize="12"
+                fontWeight="700"
+              >
+                {segment.count > 0
+                  ? percentFormatter.format(segment.survivalRate)
+                  : '—'}
+              </text>
+              <text
+                x={leftPadding + plotWidth + 12}
+                y={y + 16}
+                fill="var(--analytics-muted)"
+                fontSize="11"
+              >
+                {segment.survivedCount}/{segment.count}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="analytics-app__plot-caption">
+        Each bar shows the share of passengers in that group who survived.
+      </p>
+    </div>
+  );
 }
 
 export default function App() {
-  const [passengers, setPassengers] = useState<TitanicPassenger[]>([]);
-  const [dataState, setDataState] = useState<DataState>('loading');
-  const [query, setQuery] = useState('');
+  const passengers = useMemo<TitanicPassenger[]>(
+    () =>
+      titanicData.map((passenger, index) => ({
+        id: `${index + 1}`,
+        age: normalizeNumber(passenger.age),
+        sex: passenger.sex === 'female' ? 'female' : 'male',
+        passengerClass:
+          passenger.pclass === 1 || passenger.pclass === 2 ? passenger.pclass : 3,
+        fare: normalizeNumber(passenger.fare),
+        embarked: normalizeEmbarkation(passenger.embarked),
+        survived: passenger.survived === 1,
+      })),
+    [],
+  );
   const [selectedClass, setSelectedClass] = useState<ClassFilter>('all');
   const [selectedEmbarkation, setSelectedEmbarkation] =
-    useState<'all' | Embarkation>('all');
+    useState<EmbarkationFilter>('all');
   const [chartDimension, setChartDimension] = useState<ChartDimension>('sex');
-  const [selectedSegmentKey, setSelectedSegmentKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPassengers(titanicPassengers);
-      setDataState('ready');
-    }, 280);
-
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const filteredPassengers = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
     return passengers.filter((passenger) => {
-      if (
-        normalizedQuery &&
-        !`${passenger.name} ${passenger.destination}`
-          .toLowerCase()
-          .includes(normalizedQuery)
-      ) {
-        return false;
-      }
-
       if (
         selectedClass !== 'all' &&
         passenger.passengerClass !== selectedClass
@@ -222,7 +373,7 @@ export default function App() {
 
       return true;
     });
-  }, [passengers, query, selectedClass, selectedEmbarkation]);
+  }, [passengers, selectedClass, selectedEmbarkation]);
 
   const metrics = useMemo(() => {
     const survivedCount = filteredPassengers.filter(
@@ -240,7 +391,11 @@ export default function App() {
           .map((passenger) => passenger.age)
           .filter((age): age is number => age !== null),
       ),
-      averageFare: average(filteredPassengers.map((passenger) => passenger.fare)),
+      averageFare: average(
+        filteredPassengers
+          .map((passenger) => passenger.fare)
+          .filter((fare): fare is number => fare !== null),
+      ),
       survivedCount,
     };
   }, [filteredPassengers]);
@@ -250,45 +405,12 @@ export default function App() {
     [filteredPassengers, chartDimension],
   );
 
-  const resolvedSelectedSegmentKey =
-    selectedSegmentKey &&
-    survivalSegments.some((segment) => segment.key === selectedSegmentKey)
-      ? selectedSegmentKey
-      : survivalSegments.find((segment) => segment.count > 0)?.key ??
-        survivalSegments[0]?.key ??
-        null;
-
-  const selectedSegment =
-    survivalSegments.find((segment) => segment.key === resolvedSelectedSegmentKey) ??
-    null;
-
-  const bestAndWorstSegments = useMemo(() => {
-    const populatedSegments = survivalSegments.filter((segment) => segment.count > 0);
-
-    if (populatedSegments.length < 2) {
-      return null;
-    }
-
-    const sortedSegments = [...populatedSegments].sort(
-      (left, right) => right.survivalRate - left.survivalRate,
-    );
-
-    return {
-      best: sortedSegments[0],
-      worst: sortedSegments[sortedSegments.length - 1],
-    };
-  }, [survivalSegments]);
-
   const activeFilterCount = [
-    query.trim().length > 0,
     selectedClass !== 'all',
     selectedEmbarkation !== 'all',
   ].filter(Boolean).length;
 
-  const totalPassengers = passengers.length;
-
   function clearFilters() {
-    setQuery('');
     setSelectedClass('all');
     setSelectedEmbarkation('all');
   }
@@ -300,48 +422,40 @@ export default function App() {
           <div className="analytics-app__eyebrow">Titanic Explorer</div>
           <h1 className="analytics-app__title">Passenger survival patterns</h1>
           <p className="analytics-app__summary">
-            Explore the Titanic sample with a survival chart, switch between
-            variables like sex and class, and inspect the values behind each
-            cohort.
+            Compare survival outcomes with a simple bar plots.
           </p>
         </div>
 
-        <span className={`analytics-app__status analytics-app__status--${dataState}`}>
-          {dataState === 'loading' ? 'Loading sample feed' : 'Sample data only'}
+        <span className="analytics-app__status analytics-app__status--ready">
+          Example MFE App
         </span>
       </header>
 
       <section className="analytics-app__kpi-grid">
         <article className="analytics-app__panel analytics-app__kpi">
           <span className="analytics-app__kpi-label">Passengers in view</span>
-          <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' ? metrics.totalPassengers : '—'}
-          </strong>
+          <strong className="analytics-app__kpi-value">{metrics.totalPassengers}</strong>
           <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? `${totalPassengers} passengers available in the sample`
-              : 'Waiting for the sample manifest'}
+            {passengers.length} passengers available in the sample
           </p>
         </article>
 
         <article className="analytics-app__panel analytics-app__kpi">
           <span className="analytics-app__kpi-label">Survival rate</span>
           <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' && metrics.survivalRate !== null
+            {metrics.survivalRate !== null
               ? percentFormatter.format(metrics.survivalRate)
               : '—'}
           </strong>
           <p className="analytics-app__kpi-meta">
-            {dataState === 'ready'
-              ? `${metrics.survivedCount} survivors in the current cohort`
-              : 'Calculating cohort outcome'}
+            {metrics.survivedCount} survivors in the current view
           </p>
         </article>
 
         <article className="analytics-app__panel analytics-app__kpi">
           <span className="analytics-app__kpi-label">Average age</span>
           <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' ? formatAverage(metrics.averageAge, 'age') : '—'}
+            {formatAverage(metrics.averageAge, 'age')}
           </strong>
           <p className="analytics-app__kpi-meta">Unknown ages are excluded</p>
         </article>
@@ -349,9 +463,9 @@ export default function App() {
         <article className="analytics-app__panel analytics-app__kpi">
           <span className="analytics-app__kpi-label">Average fare</span>
           <strong className="analytics-app__kpi-value">
-            {dataState === 'ready' ? formatAverage(metrics.averageFare, 'fare') : '—'}
+            {formatAverage(metrics.averageFare, 'fare')}
           </strong>
-          <p className="analytics-app__kpi-meta">Average ticket price in view</p>
+          <p className="analytics-app__kpi-meta">Unknown fares are excluded</p>
         </article>
       </section>
 
@@ -361,14 +475,13 @@ export default function App() {
             <div>
               <h2 className="analytics-app__section-title">Survival comparison</h2>
               <p className="analytics-app__section-copy">
-                Pick the variable to compare and click a bar to inspect that cohort.
+                Switch the grouping and compare the outcome for each segment at a
+                glance.
               </p>
             </div>
             <div className="analytics-app__section-meta">
               <span>
-                {dataState === 'ready'
-                  ? `Showing ${filteredPassengers.length} of ${totalPassengers}`
-                  : 'Feed pending'}
+                Showing {filteredPassengers.length} of {passengers.length}
               </span>
               {activeFilterCount > 0 ? (
                 <button
@@ -384,22 +497,9 @@ export default function App() {
 
           <div className="analytics-app__filters">
             <label className="analytics-app__field">
-              <span className="analytics-app__field-label">Search</span>
-              <input
-                className="analytics-app__input"
-                disabled={dataState !== 'ready'}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search passenger or destination"
-                type="search"
-                value={query}
-              />
-            </label>
-
-            <label className="analytics-app__field">
               <span className="analytics-app__field-label">View survival by</span>
               <select
                 className="analytics-app__select"
-                disabled={dataState !== 'ready'}
                 onChange={(event) =>
                   setChartDimension(event.target.value as ChartDimension)
                 }
@@ -417,7 +517,6 @@ export default function App() {
               <span className="analytics-app__field-label">Filter class</span>
               <select
                 className="analytics-app__select"
-                disabled={dataState !== 'ready'}
                 onChange={(event) =>
                   setSelectedClass(
                     event.target.value === 'all'
@@ -439,11 +538,8 @@ export default function App() {
               <span className="analytics-app__field-label">Embarked</span>
               <select
                 className="analytics-app__select"
-                disabled={dataState !== 'ready'}
                 onChange={(event) =>
-                  setSelectedEmbarkation(
-                    event.target.value as 'all' | Embarkation,
-                  )
+                  setSelectedEmbarkation(event.target.value as EmbarkationFilter)
                 }
                 value={selectedEmbarkation}
               >
@@ -456,16 +552,7 @@ export default function App() {
             </label>
           </div>
 
-          {dataState === 'loading' ? (
-            <div className="analytics-app__state-card">
-              <h3 className="analytics-app__state-title">Loading the manifest</h3>
-              <p className="analytics-app__state-copy">
-                Pulling the local sample and preparing survival cohorts.
-              </p>
-            </div>
-          ) : null}
-
-          {dataState === 'ready' && filteredPassengers.length === 0 ? (
+          {filteredPassengers.length === 0 ? (
             <div className="analytics-app__state-card">
               <h3 className="analytics-app__state-title">
                 No passengers match the current filters
@@ -481,238 +568,26 @@ export default function App() {
                 Reset filters
               </button>
             </div>
-          ) : null}
-
-          {dataState === 'ready' && filteredPassengers.length > 0 ? (
-            <>
-              <div className="analytics-app__chart-card">
-                <div className="analytics-app__chart-header">
-                  <div>
-                    <h3 className="analytics-app__insight-title">
-                      Survival by {chartDimensionLabel(chartDimension)}
-                    </h3>
-                    <p className="analytics-app__insight-copy">
-                      Bar height shows the share of passengers in each group who
-                      survived.
-                    </p>
-                  </div>
-                  {selectedSegment ? (
-                    <span className="analytics-app__status analytics-app__status--ready">
-                      {selectedSegment.label}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="analytics-app__chart">
-                  <div className="analytics-app__chart-gridlines" aria-hidden="true">
-                    {[0, 25, 50, 75, 100].map((tick) => (
-                      <div
-                        className="analytics-app__chart-gridline"
-                        key={tick}
-                        style={{ bottom: `${tick}%` }}
-                      >
-                        <span>{tick}%</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div
-                    className={`analytics-app__chart-bars analytics-app__chart-bars--${survivalSegments.length}`}
-                  >
-                    {survivalSegments.map((segment) => {
-                      const isSelected = segment.key === resolvedSelectedSegmentKey;
-                      const barHeight =
-                        segment.count > 0
-                          ? chartFillSize(segment.survivalRate, 24)
-                          : '10px';
-
-                      return (
-                        <button
-                          aria-pressed={isSelected}
-                          className={`analytics-app__chart-column${isSelected ? ' analytics-app__chart-column--selected' : ''}`}
-                          key={segment.key}
-                          onClick={() => setSelectedSegmentKey(segment.key)}
-                          type="button"
-                        >
-                          <span className="analytics-app__chart-value">
-                            {segment.count > 0
-                              ? percentFormatter.format(segment.survivalRate)
-                              : '—'}
-                          </span>
-                          <div className="analytics-app__chart-bar-shell">
-                            <span className="analytics-app__chart-bar-caption">
-                              {segment.survivedCount} of {segment.count}
-                            </span>
-                            <div
-                              className={`analytics-app__chart-bar${segment.count === 0 ? ' analytics-app__chart-bar--empty' : ''}`}
-                              style={{
-                                height: barHeight,
-                              }}
-                            />
-                          </div>
-                          <span className="analytics-app__chart-label">
-                            {segment.label}
-                          </span>
-                          <span className="analytics-app__chart-meta">
-                            {segment.count} passengers
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={`analytics-app__readout-grid analytics-app__readout-grid--${survivalSegments.length}`}
-              >
-                {survivalSegments.map((segment) => {
-                  const isSelected = segment.key === resolvedSelectedSegmentKey;
-
-                  return (
-                    <button
-                      className={`analytics-app__readout-card${isSelected ? ' analytics-app__readout-card--selected' : ''}`}
-                      key={segment.key}
-                      onClick={() => setSelectedSegmentKey(segment.key)}
-                      type="button"
-                    >
-                      <span className="analytics-app__readout-label">{segment.label}</span>
-                      <strong className="analytics-app__readout-value">
-                        {segment.count > 0
-                          ? percentFormatter.format(segment.survivalRate)
-                          : '—'}
-                      </strong>
-                      <span className="analytics-app__readout-meta">
-                        {segment.survivedCount} survived of {segment.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          ) : null}
-        </div>
-
-        <aside className="analytics-app__panel analytics-app__side-panel">
-          <div className="analytics-app__section-header analytics-app__section-header--stacked">
-            <div>
-              <h2 className="analytics-app__section-title">Selected cohort</h2>
-              <p className="analytics-app__section-copy">
-                The value boxes update from the highlighted chart group.
-              </p>
-            </div>
-          </div>
-
-          {dataState !== 'ready' || !selectedSegment || selectedSegment.count === 0 ? (
-            <div className="analytics-app__state-card analytics-app__state-card--compact">
-              <h3 className="analytics-app__state-title">
-                {dataState === 'loading' ? 'Preparing chart detail' : 'Select a group'}
-              </h3>
-              <p className="analytics-app__state-copy">
-                {dataState === 'loading'
-                  ? 'The detail panel appears once the sample manifest finishes loading.'
-                  : 'Pick a bar to inspect survival values for that cohort.'}
-              </p>
-            </div>
           ) : (
-            <>
-              <div className="analytics-app__passenger-card">
-                <div className="analytics-app__passenger-card-top">
-                  <div>
-                    <h3 className="analytics-app__passenger-card-title">
-                      {selectedSegment.label}
-                    </h3>
-                    <p className="analytics-app__passenger-card-subtitle">
-                      Survival grouped by {chartDimensionLabel(chartDimension)}
-                    </p>
-                  </div>
-                  <span className="analytics-app__pill analytics-app__pill--success">
-                    {percentFormatter.format(selectedSegment.survivalRate)}
-                  </span>
-                </div>
-
-                <dl className="analytics-app__facts-grid">
-                  <div>
-                    <dt>Passengers</dt>
-                    <dd>{selectedSegment.count}</dd>
-                  </div>
-                  <div>
-                    <dt>Survived</dt>
-                    <dd>{selectedSegment.survivedCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Average age</dt>
-                    <dd>{formatAverage(selectedSegment.averageAge, 'age')}</dd>
-                  </div>
-                  <div>
-                    <dt>Average fare</dt>
-                    <dd>{formatAverage(selectedSegment.averageFare, 'fare')}</dd>
-                  </div>
-                </dl>
-
-                <p className="analytics-app__narrative">
-                  {selectedSegment.label} represents{' '}
-                  {percentFormatter.format(
-                    selectedSegment.count / filteredPassengers.length,
-                  )}{' '}
-                  of the filtered cohort and sits{' '}
-                  {selectedSegment.survivalRate >= (metrics.survivalRate ?? 0)
-                    ? 'above'
-                    : 'below'}{' '}
-                  the overall survival rate in view.
-                </p>
-              </div>
-
-              {bestAndWorstSegments ? (
-                <div className="analytics-app__insight-card">
-                  <h3 className="analytics-app__insight-title">Survival signal</h3>
+            <div className="analytics-app__chart-card">
+              <div className="analytics-app__chart-header">
+                <div>
+                  <h3 className="analytics-app__insight-title">
+                    Survival by {chartDimensionLabel(chartDimension)}
+                  </h3>
                   <p className="analytics-app__insight-copy">
-                    {bestAndWorstSegments.best.label} has the strongest outcome at{' '}
-                    {percentFormatter.format(bestAndWorstSegments.best.survivalRate)},
-                    while {bestAndWorstSegments.worst.label} trails at{' '}
-                    {percentFormatter.format(bestAndWorstSegments.worst.survivalRate)}.
+                    Built directly in React from <code>src/data/titanic.json</code>.
                   </p>
                 </div>
-              ) : null}
-            </>
-          )}
+              </div>
 
-          <div className="analytics-app__mix-card">
-            <div className="analytics-app__mix-card-header">
-              <h3 className="analytics-app__insight-title">Current breakdown</h3>
-              <span>
-                {dataState === 'ready'
-                  ? `By ${chartDimensionLabel(chartDimension)}`
-                  : '—'}
-              </span>
+              <SurvivalBarPlot
+                chartDimension={chartDimension}
+                segments={survivalSegments}
+              />
             </div>
-            <div className="analytics-app__mix-list">
-              {survivalSegments.map((segment) => (
-                <div className="analytics-app__mix-row" key={segment.key}>
-                  <div className="analytics-app__mix-label">
-                    <span>{segment.label}</span>
-                    <span>
-                      {segment.count > 0
-                        ? percentFormatter.format(segment.survivalRate)
-                        : '—'}
-                    </span>
-                  </div>
-                  <div className="analytics-app__mix-bar">
-                    <span
-                      className="analytics-app__mix-fill"
-                      style={{
-                        width:
-                          segment.count > 0
-                            ? chartFillSize(segment.survivalRate, 24)
-                            : '0px',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+          )}
+        </div>
       </section>
     </div>
   );

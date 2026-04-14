@@ -10,8 +10,8 @@
   -moz-osx-font-smoothing: grayscale;
 
   --analytics-app-bg: #f3f5fb;
-  --analytics-surface: rgba(255, 255, 255, 0.92);
-  --analytics-elevated: #eef2ff;
+  --analytics-surface: #ffffff;
+  --analytics-elevated: #ffffff;
   --analytics-border: rgba(15, 23, 42, 0.08);
   --analytics-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
   --analytics-heading: #111827;
@@ -20,6 +20,15 @@
   --analytics-accent: #4f46e5;
   --analytics-accent-soft: rgba(79, 70, 229, 0.08);
   --analytics-accent-border: rgba(79, 70, 229, 0.22);
+  --analytics-chart-female: #ec4899;
+  --analytics-chart-male: #3b82f6;
+  --analytics-chart-class-1: #8b5cf6;
+  --analytics-chart-class-2: #14b8a6;
+  --analytics-chart-class-3: #f97316;
+  --analytics-chart-port-c: #6366f1;
+  --analytics-chart-port-q: #10b981;
+  --analytics-chart-port-s: #f59e0b;
+  --analytics-chart-unknown: #94a3b8;
   --analytics-success-soft: rgba(22, 163, 74, 0.12);
   --analytics-success-border: rgba(22, 163, 74, 0.18);
   --analytics-success-strong: #166534;
@@ -31,32 +40,6 @@
   --analytics-warning-strong: #b45309;
   color: var(--analytics-text);
   background: var(--analytics-app-bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --analytics-app-bg: #0f172a;
-    --analytics-surface: rgba(15, 23, 42, 0.9);
-    --analytics-elevated: #172033;
-    --analytics-border: rgba(148, 163, 184, 0.15);
-    --analytics-shadow: 0 18px 50px rgba(2, 6, 23, 0.36);
-    --analytics-heading: #f8fafc;
-    --analytics-text: #dbe4f0;
-    --analytics-muted: #94a3b8;
-    --analytics-accent: #818cf8;
-    --analytics-accent-soft: rgba(129, 140, 248, 0.14);
-    --analytics-accent-border: rgba(129, 140, 248, 0.28);
-    --analytics-success-soft: rgba(74, 222, 128, 0.14);
-    --analytics-success-border: rgba(74, 222, 128, 0.24);
-    --analytics-success-strong: #86efac;
-    --analytics-danger-soft: rgba(248, 113, 113, 0.12);
-    --analytics-danger-border: rgba(248, 113, 113, 0.2);
-    --analytics-danger-strong: #fda4af;
-    --analytics-warning-soft: rgba(251, 191, 36, 0.14);
-    --analytics-warning-border: rgba(251, 191, 36, 0.22);
-    --analytics-warning-strong: #facc15;
-  }
 }
 
 html,
